@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "269825363781",
+    "project_id": "mindspace-vr",
+    "storage_bucket": "mindspace-vr.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:269825363781:android:4201e064bbf4055275b82c",
+        "android_client_info": {
+          "package_name": "com.bjy.mindspace"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQwVwiUaW-Yud4kUh1w8d-6vabPD9asOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
