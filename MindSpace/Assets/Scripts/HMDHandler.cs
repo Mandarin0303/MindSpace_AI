@@ -3,177 +3,374 @@ using System.Collections;   // 코루틴을 위해 필요
 using Firebase;
 using Firebase.Database;
 using Firebase.Extensions;
+using System.Threading.Tasks;
 
 public class HMDHandler : MonoBehaviour
 {
+    [Header("사운드")]
+    [Tooltip("VR기기 탈착 안내 음성")]
     public AudioSource guideAudio;  // 유니티 에디터에서 음성 파일 연결용
+
+    [Header("Scene Ambience")]
     public SceneAmbience ambienceManager;
 
-    private DatabaseReference dbReference;  // Firebase 변수 추가
-    private float unmountTimer = 0f;
-    private bool isTransitioned = false;    // 이미 수면 단계로 넘어갔는지 체크
+    [Header("이완 판정 설정")]
+    [Tooltip("이완으로 판정할 호흡 레벨(이 값 이하면 이완 상태)")]
+    public int relaxedLevelThreshold = 2;   // Level 1~2 일때 이완 상태
+
+    [Tooltip("이완 상태가 이 시간(초) 이상 지속되면 안내 음성 재생")]
+    public float relaxedHoldDuration = 30f;
+
+    [Tooltip("탈착으로 판정할 userPresent == false 유지 시간(초)")]
+    public float unmountHoldDuration = 5f;
+
+    [Tooltip("안내 음성 재생 후 탈착 대기 최대 시간(초). 초과 시 자동으로 탈찰 처리")]
+    public float waitForRemovalTimeout = 120f;
+
+    // ----- 내부 변수 -----
+    private DatabaseReference _dbRef;  // Firebase 변수 추가
+    private bool _firebaseReady = false;
+
+    // 이완 판정
+    private float _relaxedTimer = 0.0f; // 이완 상태 지속 타이머
+    private bool _guideTriggered = false;    // 안내 음성 재생 여부(중복방지)
+
+    // 탈찰 판정
+    private float _unmountTimer = 0f;
+    private bool _isTransitioned = false;    // 수면 모드로 전환됐는지
+
+    // 상태 머신
+    // IDLE-> RELAXED_WAIT-> GUIDE_PLAYING-> WAIT_REMOVAL-> SLEEP_MODE
+    private enum State { Idle, RelaxedWait, GuidePlaying, WaitRemoval, SleepMode }
+    private State _state = State.Idle;
 
     private void Start()
     {
         // 초기화 시작 로그
         Debug.Log("Firebase 초기화 시도중...");
 
-        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+        InitFirebase();
+
+        // BreathDetector 이벤트 구독 추가
+        if (BreathDetector.Current != null)
         {
-            DependencyStatus dependencyStatus = task.Result;
-            if (dependencyStatus == DependencyStatus.Available)
-            {
-                // URL 명시적 설정
-                string myDatabaseUrl = "https://mindspace-vr-default-rtdb.firebaseio.com/";
+            BreathDetector.Current.onBreathUpdate.AddListener(OnBreathUpdated);
+        }
+        else
+        {
+            Debug.LogWarning("[HMDHandler] BreathDetector를 찾을 수 없습니다.");
+        }
 
-                //AppOptions를 사용해 주소를 직접 명시한다.
-                 AppOptions options = new AppOptions
-                    {
-                         DatabaseUrl = new System.Uri(myDatabaseUrl)
-                     };
+        //FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+        //{
+        //    DependencyStatus dependencyStatus = task.Result;
+        //    if (dependencyStatus == DependencyStatus.Available)
+        //    {
+        //        // URL 명시적 설정
+        //        string myDatabaseUrl = "https://mindspace-vr-default-rtdb.firebaseio.com/";
 
-                //앱 인스턴스 생성( 중복방지)
-                FirebaseApp app;
-                try
-                {
-                    app = FirebaseApp.Create(options, "mindspace-app");
-                }
-                catch(System.Exception)
-                {
-                    // 이미 같은 이름의 앱이 존재하면 가져다 씀.
-                    app = FirebaseApp.GetInstance("mindspace-app");
-                    Debug.Log("기존 Firebase앱 인스턴스 재사용");
-                }
+        //        //AppOptions를 사용해 주소를 직접 명시한다.
+        //         AppOptions options = new AppOptions
+        //            {
+        //                 DatabaseUrl = new System.Uri(myDatabaseUrl)
+        //             };
 
-                // 가장 중요한 Reference 설정
-                dbReference = FirebaseDatabase.GetInstance(app).RootReference;
-                dbReference.Child("status").Child("isWearing").SetValueAsync(true);
+        //        //앱 인스턴스 생성( 중복방지)
+        //        FirebaseApp app;
+        //        try
+        //        {
+        //            app = FirebaseApp.Create(options, "mindspace-app");
+        //        }
+        //        catch(System.Exception)
+        //        {
+        //            // 이미 같은 이름의 앱이 존재하면 가져다 씀.
+        //            app = FirebaseApp.GetInstance("mindspace-app");
+        //            Debug.Log("기존 Firebase앱 인스턴스 재사용");
+        //        }
 
-                if(dbReference != null)
-                {
-                    Debug.Log("<color=blue> Firebase 연결 최초 성공!</color>");
-                }
-                else
-                {
-                    Debug.LogError("dbReference 설정 실패!");
-                }
+        //        // 가장 중요한 Reference 설정
+        //        _dbRef = FirebaseDatabase.GetInstance(app).RootReference;
+        //        _dbRef.Child("status").Child("isWearing").SetValueAsync(true);
 
-            }
-            else
-            {
-                Debug.LogError($"Firebase 초기화 실패 : {dependencyStatus}");
-            }
-        });
+        //        if(_dbRef != null)
+        //        {
+        //            Debug.Log("<color=blue> Firebase 연결 최초 성공!</color>");
+        //        }
+        //        else
+        //        {
+        //            Debug.LogError("dbReference 설정 실패!");
+        //        }
+
+        //    }
+        //    else
+        //    {
+        //        Debug.LogError($"Firebase 초기화 실패 : {dependencyStatus}");
+        //    }
+        //});
+    }
+    private void OnDestroy()
+    {
+        if (BreathDetector.Current != null)
+        {
+            BreathDetector.Current.onBreathUpdate.RemoveListener(OnBreathUpdated);
+        }
     }
     private void Update()
     {
-        // OVRManager가 살아있는지 + 유저가 없는지 동시에 체크
-        // 에디터 테스트 시에는 센서가 민감하므로 조건을 더 추가한다.
-        // OVRPlugin.userPresent: HMD를 쓰고 있으면 true, 벗으면 false
-        bool isUserAbsent = !OVRPlugin.userPresent;
-
-        // 1. 기기를 벗엇는지 감지
-        if (isUserAbsent)
+        switch (_state)
         {
-            unmountTimer += Time.deltaTime;
-
-            // 테스트 중에는 3초가 짧을 수 있으니 5초로 늘려보기.
-            if(unmountTimer >= 5f && !isTransitioned)
-            {
-                ExecuteSleepStep();
-            }
-        }
-        else
-        {
-            //--- [ 수정 및 추가된 부분 시작 ] ---
-
-            // 기기를 다시 썼을 때
-            unmountTimer = 0f;
-
-            // 이미 수면 상태(false)로 넘어갔던 상태라면 다시 착용 상태(true)로 복구
-            if(isTransitioned)
-            {
-                isTransitioned = false; // 상태 플래그 초기화
-
-                if(dbReference != null)
+            case State.WaitRemoval:
+                if (!OVRPlugin.userPresent)
                 {
-                    //Firebase의 status/isWearing을 다시 true로 변경
-                    dbReference.Child("status").Child("isWearing").SetValueAsync(true).ContinueWithOnMainThread(task =>
+                    _unmountTimer += Time.deltaTime;
+                    if (_unmountTimer >= unmountHoldDuration)
                     {
-                        if (task.IsCompleted)
-                        {
-                            Debug.Log("<color=green>기기 착용 감지: Firebase를 true로 복구했습니다.</color>");
-                        }
-                    });
-                }
-
-                // 선택사항 다시 썼을 때 배경음을 다시 키우고 싶다면 여기에 추가.
-                if(ambienceManager != null)
-                {
-                    //ambienceManager.StartFadeInBGM(1.0f);   // 페이드인 함수가 있다면 호출
-                }
-            }
-
-            // ---[수정 및 추가된 부분 끝]---
-        }
-    }
-
-    private void ExecuteSleepStep()
-    {
-        Debug.Log("ExecuteSleepStep 진입");
-
-        if(dbReference == null)
-        {
-            Debug.Log("<color=red>비상! dbReference가 null입니다. Firebase가 연결되지 않았습니다.</color>");
-            return;
-            // 여기서 return;을 해서 더 이상 진행 안 되게 막아야 한다.
-        }
-        else
-        {
-            Debug.Log("dbReference 정상확인. 전송 시도 시작...");
-        }
-
-        isTransitioned = true;
-        Debug.Log("========5초 유지 성공! 수면 모드 진입");
-
-        // 1. 배경음 페이드 아웃 (Ambience 매니저에게 명령)
-        if(ambienceManager != null)
-        {
-            ambienceManager.StartFadeOutBGM(3.0f);  // 3초 동안 소리 줄임
-        }
-
-        // 2. 안내 음성 재생
-        if(guideAudio != null)
-        {
-            guideAudio.Play();
-            // 오디오가 재생 중인지 콘솔로 한 번 더 확인
-            Debug.Log("음성 파일 재생 여부: " + guideAudio.isPlaying);
-        }
-
-        // TODO: 다음 단계인 Firebase 데이터 전송 함수 호출 자리.
-        // 3. Firebase 데이터 전송 (추가된 부분)
-        if(dbReference != null)
-        {
-            Debug.Log("서버로 데이터 쏘기 직전...");
-
-            // .Child("isAsleep").SetValueAsync(true)가 정상 작동하려면
-            // Firebase 콘솔의 Rules(규칙)이 true로 되어 있어야 한다.
-            dbReference.Child("status").Child("isWearing").SetValueAsync(false).ContinueWithOnMainThread(task =>
-            {
-                if (task.IsCompleted)
-                {
-                    Debug.Log("<color=blue>데이터 전송 성공!</color>");
+                        EnterSleepMode();
+                    }
                 }
                 else
                 {
-                    Debug.LogError("Firebase 전송 실패: " + task.Exception);
+                    _unmountTimer = 0f;
                 }
-            });
+                break;
 
-            Debug.Log("SetValueAsync 함수 자체는 실행 완료됨.");
-
-            // 추가로 스트레스 수치도 서버에 기록해보자 (예시, 1단계 성공 기념)
-            dbReference.Child("status").Child("stressLevel").SetValueAsync(1);
+            case State.SleepMode:
+                if (OVRPlugin.userPresent && _isTransitioned)
+                {
+                    OnResumed();
+                }
+                break;
         }
     }
+
+    // OVRManager가 살아있는지 + 유저가 없는지 동시에 체크
+    // 에디터 테스트 시에는 센서가 민감하므로 조건을 더 추가한다.
+    // OVRPlugin.userPresent: HMD를 쓰고 있으면 true, 벗으면 false
+    //bool isUserAbsent = !OVRPlugin.userPresent;
+
+    //// 1. 기기를 벗엇는지 감지
+    //if (isUserAbsent)
+    //{
+    //    unmountTimer += Time.deltaTime;
+
+    //    // 테스트 중에는 3초가 짧을 수 있으니 5초로 늘려보기.
+    //    if (unmountTimer >= 5f && !isTransitioned)
+    //    {
+    //        ExecuteSleepStep();
+    //    }
+    //}
+    //else
+    //{
+    //    //--- [ 수정 및 추가된 부분 시작 ] ---
+
+    //    // 기기를 다시 썼을 때
+    //    unmountTimer = 0f;
+
+    //    // 이미 수면 상태(false)로 넘어갔던 상태라면 다시 착용 상태(true)로 복구
+    //    if (isTransitioned)
+    //    {
+    //        isTransitioned = false; // 상태 플래그 초기화
+
+    //        if (_dbRef != null)
+    //        {
+    //            //Firebase의 status/isWearing을 다시 true로 변경
+    //            _dbRef.Child("status").Child("isWearing").SetValueAsync(true).ContinueWithOnMainThread(task =>
+    //            {
+    //                if (task.IsCompleted)
+    //                {
+    //                    Debug.Log("<color=green>기기 착용 감지: Firebase를 true로 복구했습니다.</color>");
+    //                }
+    //            });
+    //        }
+
+    //        // 선택사항 다시 썼을 때 배경음을 다시 키우고 싶다면 여기에 추가.
+    //        if (ambienceManager != null)
+    //        {
+    //            //ambienceManager.StartFadeInBGM(1.0f);   // 페이드인 함수가 있다면 호출
+    //        }
+    //    }
+
+
+
+    // ----- Firebase 초기화 -----
+    private void InitFirebase()
+    {
+        Debug.Log("[HMDHandler] Firebase 초기화 시도...");
+        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.Result != DependencyStatus.Available)
+            {
+                Debug.LogError($"[HMDHandler] Firebase 초기화 실패: {task.Result}");
+                return;
+            }
+
+            FirebaseApp app;
+            try
+            {
+                app = FirebaseApp.Create(new AppOptions { DatabaseUrl = new System.Uri("https://mindspace-vr-default-rtdb.firebaseio.com/") },
+                "mindspace-app"
+                );
+            }
+            catch (System.Exception)
+            {
+                app = FirebaseApp.GetInstance("mindspace-app");
+                Debug.Log("[HMDHandler] 기존 Firebase 앱 인스턴스 재사용");
+            }
+
+            _dbRef = FirebaseDatabase.GetInstance(app).RootReference;
+            _firebaseReady = true;
+
+            // VR 착용 상태 초기화
+            SetFirebase("status/isWearing", true);
+            SetFirebase("status/sleepMusicStart", false);
+            Debug.Log("[HMDHandler] Firebase 연결 성공!");
+        });
+    }
+
+    // ----- 호흡 상태 수신 -> 이완 판정
+    private void OnBreathUpdated(BreathState state)
+    {
+        // 이완 판정은 Idle 또는 RelaxedWait 상태일 때만
+        if (_state != State.Idle && _state != State.RelaxedWait) return;
+
+        // Level 파싱 : "Level1" -> 1
+        int level = ParseLevel(state.status);
+        bool isRelaxed = level > 0 && level <= relaxedLevelThreshold && state.confidence >= 0.5f;
+
+        if ((isRelaxed))
+        {
+            _relaxedTimer += Time.deltaTime;
+            _state = State.RelaxedWait;
+
+            if (_relaxedTimer >= relaxedHoldDuration && !_guideTriggered)
+            {
+                // 이완 임계점 도달 -> 안내 음성 재생
+                _guideTriggered = true;
+                StartCoroutine(PlayGuideAndWait());
+            }
+        }
+        else
+        {
+            // 이완 상태 끊기면 타이머 리셋
+            _relaxedTimer = 0f;
+            if (_state == State.RelaxedWait)
+            {
+                _state = State.Idle;
+            }
+        }
+    }
+    // 안내 음성 재생 -> 탈착 대기 코루틴
+    private IEnumerator PlayGuideAndWait()
+    {
+        _state = State.GuidePlaying;
+        Debug.Log("[HMDHandler] 이완 임계점 도달 -> 안내 음성 재생");
+
+        // BGM 페이드 아웃 (음성이 잘 들리도록)
+        if (ambienceManager != null)
+        {
+            ambienceManager.StartFadeOutBGM(3f);
+        }
+
+        yield return new WaitForSeconds(1.5f);  // BGM 살짝 줄어든 뒤 음성 시작
+
+        if (guideAudio != null)
+        {
+            guideAudio.Play();
+            Debug.Log("[HMDHandler] 안내 음성 재생 중...");
+
+            // 음성이 끝날 때까지 대기
+            yield return new WaitUntil(() => !guideAudio.isPlaying);
+        }
+        else
+        {
+            Debug.LogWarning("[HMDHandler] guideAudio가 연결되지 않았습니다.");
+            yield return new WaitForSeconds(5f);    // guideAudio 없으면 5초 대기
+        }
+
+        Debug.Log("[HMHandler] 안내 음성 완료 -> 탈착 대기 시작");
+        _state = State.WaitRemoval;
+        _unmountTimer = 0f;
+
+        // 탈착 없이 너무 오래 지나면 자동 처리
+        StartCoroutine(RemovalTimeout());
+    }
+
+    private IEnumerator RemovalTimeout()
+    {
+        yield return new WaitForSeconds(waitForRemovalTimeout);
+        if (_state == State.WaitRemoval)
+        {
+            Debug.Log("[HMDHandler] 탈착 대기 타임아웃 -> 자동 수면 모드 전환");
+            EnterSleepMode();
+        }
+    }
+    // 수면 모드 진입(탈착 확정)
+    private void EnterSleepMode()
+    {
+        if (_state == State.SleepMode) return;  // 중복 방지
+        _state = State.SleepMode;
+        _isTransitioned = true;
+        _unmountTimer = 0f;
+
+        Debug.Log("HMDHandler] 탈착 확정 -> 수면 모드 진입");
+
+        // Firebase : 착용 해제 + 수면 음악 시작 신호
+        // 모바일 PWA가 sleepMusicStart = true를 감지하면 수면 음악을 재생함
+        SetFirebase("status/isWearing", false);
+        SetFirebase("status/sleepMusicStart", true);
+        SetFirebase("status/sleepStartTime", System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+        Debug.Log("[HMDHandler] Firebase 신호 전송 완료 -> 모바일 수면 음악 시작 대기");
+    }
+    // 재착용 복구
+    private void OnResumed()
+    {
+        _isTransitioned = false;
+        _state = State.Idle;
+        _relaxedTimer = 0f;
+        _guideTriggered = false;
+        _unmountTimer = 0f;
+
+        SetFirebase("status/isWearing", true);
+        SetFirebase("status/sleepMusicStart", false);
+
+        // BGM 재개
+        if (ambienceManager != null)
+        {
+            ambienceManager.StartFadeInBGM(2f);
+        }
+        Debug.Log("[HMDHandler] 기기 재착용 감지 -> 정상 모드 복구");
+    }
+
+    // Firebase 헬퍼
+    private void SetFirebase(string path, object value)
+    {
+        if (!_firebaseReady || _dbRef == null)
+        {
+            Debug.LogWarning($"[HMDHandler] Firebase 미준비 상태에서 쓰기 시도: {path}");
+            return;
+        }
+        _dbRef.Child(path).SetValueAsync(value).ContinueWithOnMainThread(task =>
+        {
+            if (task.IsCompleted)
+            {
+                Debug.Log($"[HMDHandler] Firebase 쓰기 성공: {path} = {value}");
+            }
+            else
+            {
+                Debug.LogError($"[HMDHandler] Firebase 쓰기 실패 : {path} | {task.Exception}");
+            }
+        });
+    }
+    // 헬퍼
+    private int ParseLevel(string status)
+    {
+        // "Level1" -> 1, "Level2" ->, etc/ 파싱 실패 시 -1
+        if (string.IsNullOrEmpty(status)) return -1;
+        if (status.StartsWith("Level") && status.Length > 5 && int.TryParse(status.Substring(5), out int lv))
+        { return lv; }
+
+        return -1;
+    }
+
 }

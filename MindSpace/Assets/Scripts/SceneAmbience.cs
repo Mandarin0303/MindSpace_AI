@@ -14,7 +14,9 @@ public class SceneAmbience : MonoBehaviour
     public float lightIntensity = 1f;
 
     [Header("skybox material")]
-    public Material skyboxMaterial; 
+    public Material skyboxMaterial;
+
+    private float _originalVolume = 1f;     // BGM 원본 볼륨(페이드 복원용)
 
     private void Start()
     {
@@ -24,6 +26,7 @@ public class SceneAmbience : MonoBehaviour
             bgmSource.clip = bgmClip;
             bgmSource.loop = true;
             bgmSource.Play();
+            _originalVolume = bgmSource.volume;
         }
 
         // 라이트 색상
@@ -42,14 +45,22 @@ public class SceneAmbience : MonoBehaviour
         }
     }
 
-    // 외부(HMDHandler)에서 호출할 페이드 아웃 함수
+    // HMDHandler에서 호출: BGM 페이드 아웃
     public void StartFadeOutBGM(float duration)
     {
-        if(bgmSource != null)
-        {
-            StartCoroutine(FadeOutCoroutine(duration));
-        }
+        if (bgmSource == null) return;
+        StopAllCoroutines();
+        StartCoroutine(FadeOutCoroutine(duration));
     }
+    // HMDHandler에서 호출: BGM 페이드 인 (재착용 시 복구)
+    public void StartFadeInBGM(float duration)
+    {
+        if (bgmSource == null) return;
+        StopAllCoroutines();
+        if (!bgmSource.isPlaying) bgmSource.Play();
+        StartCoroutine(FadeInCoroutine(duration));
+    }
+
 
     private IEnumerator FadeOutCoroutine(float duration)
     {
@@ -60,7 +71,18 @@ public class SceneAmbience : MonoBehaviour
             yield return null;
         }
         bgmSource.volume = 0;
-        bgmSource.Stop();
+        bgmSource.Pause();  // Stop 대신 Pause -> 재게 시 자연스럽게 이어짐
     }
+    private IEnumerator FadeInCoroutine(float duration)
+    {
+        bgmSource.volume = 0f;
+        for(float t=0; t<duration; t += Time.deltaTime)
+        {
+            bgmSource.volume = Mathf.Lerp(0f, _originalVolume, t / duration);
+            yield return null;
+        }
+        bgmSource.volume = _originalVolume;
+    }
+    
   
 }

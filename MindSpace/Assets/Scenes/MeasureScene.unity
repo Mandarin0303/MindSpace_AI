@@ -207,6 +207,122 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &76752375
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 76752377}
+  - component: {fileID: 76752376}
+  - component: {fileID: 76752378}
+  - component: {fileID: 76752380}
+  - component: {fileID: 76752379}
+  m_Layer: 0
+  m_Name: BreathDetector
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &76752376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 76752375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e03762ad66e7f3d4aa09b4550880b63b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BreathDetector
+  serverUrl: ws://192.168.0.23:8000/ws/breath
+  micDeviceName: Headset Microphone (Oculus Virtual Audio Device)
+  micSampleRate: 16000
+  micChunkSize: 1024
+  imuSendHZ: 36
+  onBreathUpdate:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!4 &76752377
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 76752375}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.79879, y: 1.83927, z: 1.80466}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &76752378
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 76752375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea133a7e17285d647ab0a8281d36477e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BreathVisualFeedback
+  breathGuideSphere: {fileID: 0}
+  minScale: 0.8
+  maxScale: 1.4
+  breathAnimSpeed: 2
+  ambientParticles: {fileID: 0}
+  statusText: {fileID: 454020417}
+  rpmText: {fileID: 1434127101}
+  confidenceBar: {fileID: 0}
+  StressLevelText: {fileID: 454020417}
+  colorNormal: {r: 0.29, g: 0.86, b: 0.5, a: 1}
+  colorSlow: {r: 0.38, g: 0.65, b: 0.98, a: 1}
+  colorFast: {r: 0.97, g: 0.43, b: 0.43, a: 1}
+  colorHold: {r: 0.98, g: 0.8, b: 0.08, a: 1}
+  colorUnknown: {r: 0.42, g: 0.45, b: 0.5, a: 1}
+  inhaleSound: {fileID: 0}
+  exhaleSound: {fileID: 0}
+--- !u!114 &76752379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 76752375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c43157043528cb4faebdab4e5d4e282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::StressLevelSceneMgr
+  meditationScene: MeditationScene
+  natureScene: NatureScene
+  spaceScene: SpaceScene
+--- !u!114 &76752380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 76752375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c96aaba2d690104099386e462a2a17b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BreathStressSeceneController
+  measureDuration: 10
+  minConfidence: 0.2
+  resultShowDuration: 3
+  measureTimerText: {fileID: 1004647602}
+  statusText: {fileID: 1091205678}
+  breathingUI: {fileID: 1201874691}
 --- !u!1 &247049105
 GameObject:
   m_ObjectHideFlags: 0
@@ -815,8 +931,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: 
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 54a7d52dd4735df47a72953b42f6d665, type: 2}
+  m_sharedMaterial: {fileID: -2266931634742394234, guid: 54a7d52dd4735df47a72953b42f6d665, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -835,7 +951,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -1218,7 +1334,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1327491064
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1633,7 +1749,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1448308671
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1887,7 +2003,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &2061338306
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22274,3 +22390,4 @@ SceneRoots:
   - {fileID: 247049107}
   - {fileID: 1348029359}
   - {fileID: 1448308672}
+  - {fileID: 76752377}
