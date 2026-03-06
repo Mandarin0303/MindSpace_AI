@@ -44,6 +44,10 @@ public class HMDHandler : MonoBehaviour
     private enum State { Idle, RelaxedWait, GuidePlaying, WaitRemoval, SleepMode }
     private State _state = State.Idle;
 
+    private void Awake()
+    {
+        DontDestroyOnLoad(gameObject);
+    }
     private void Start()
     {
         // 초기화 시작 로그
@@ -117,6 +121,12 @@ public class HMDHandler : MonoBehaviour
     }
     private void Update()
     {
+        // 디버그용 - 나중에 지우기****
+        if(_state == State.RelaxedWait)
+        {
+            Debug.Log($"[HMDHandler] 이완 타이머: {_relaxedTimer:F1}초/{relaxedHoldDuration}초");
+        }
+
         switch (_state)
         {
             case State.WaitRemoval:
@@ -235,7 +245,7 @@ public class HMDHandler : MonoBehaviour
 
         // Level 파싱 : "Level1" -> 1
         int level = ParseLevel(state.status);
-        bool isRelaxed = level > 0 && level <= relaxedLevelThreshold && state.confidence >= 0.5f;
+        bool isRelaxed = level > 0 && level <= relaxedLevelThreshold && state.confidence >= 0.2f;
 
         if ((isRelaxed))
         {
@@ -365,12 +375,14 @@ public class HMDHandler : MonoBehaviour
     // 헬퍼
     private int ParseLevel(string status)
     {
-        // "Level1" -> 1, "Level2" ->, etc/ 파싱 실패 시 -1
-        if (string.IsNullOrEmpty(status)) return -1;
-        if (status.StartsWith("Level") && status.Length > 5 && int.TryParse(status.Substring(5), out int lv))
-        { return lv; }
-
-        return -1;
+        switch(status)
+        {
+            case "SLOW": return 1;
+            case "NORMAL": return 2;
+            case "FAST": return 3;
+            case "UNKNOWN": return -1;
+            default: return -1;
+        }
     }
 
 }

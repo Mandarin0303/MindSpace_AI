@@ -89,6 +89,7 @@ public class BreathDetector : MonoBehaviour
     {
         Current = this;
         _imuInterval = 1f / imuSendHZ;
+        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()

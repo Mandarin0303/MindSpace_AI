@@ -1597,7 +1597,7 @@ MonoBehaviour:
   guideAudio: {fileID: 1348029361}
   ambienceManager: {fileID: 2035715647}
   relaxedLevelThreshold: 2
-  relaxedHoldDuration: 3
+  relaxedHoldDuration: 30
   unmountHoldDuration: 5
   waitForRemovalTimeout: 120
 --- !u!1 &1434127100

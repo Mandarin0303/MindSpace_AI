@@ -19,13 +19,15 @@ function App() {
                 <h2>{isSleepMode ? "수면 모드 중" : "VR 명상 중"}</h2>
                 <p>상태: {sleepStatus}</p> 
                 {isSleepMode && <p> 뒤척임 횟수: {motionCount}회 </p>} 
+                {isSleepMode && sleepStatus === 'motion_detected' && (<p style={{color: `#f39c12`}}> 재입면 유도 중.. </p>)}
             </div>
             <br /><br />
             {/* 이 버튼이 Web Audio API 초기화 역할도 함 */}
-            <button onClick={isSleepMode ? stopSleepMode : startSleepMode} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            <button onClick={isSleepMode ? stopSleepMode : startSleepMode} style={{ padding: '10px 20px', fontSize: '16px', borderRadius: '8px', cursor:'pointer'}}>
                 {isSleepMode ? "수면 종료" : "수면 준비 (한 번 눌러주세요)"}
             </button>
         </div>
+
     );
 }
 
