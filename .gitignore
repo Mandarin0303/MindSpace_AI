@@ -65,3 +65,13 @@ Build_Space.apk
 Firebase/
 Nebula Skyboxes/
 *.apk
+
+node_modules/
+venv/
+__pycache__/
+.env
+.firebase/
+build/
+dist/
+*.log
+.DS_Store
