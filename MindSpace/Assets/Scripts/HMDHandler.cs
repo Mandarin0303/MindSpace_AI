@@ -3,7 +3,6 @@ using System.Collections;   // 코루틴을 위해 필요
 using Firebase;
 using Firebase.Database;
 using Firebase.Extensions;
-using System.Threading.Tasks;
 
 public class HMDHandler : MonoBehaviour
 {
@@ -64,53 +63,7 @@ public class HMDHandler : MonoBehaviour
         {
             Debug.LogWarning("[HMDHandler] BreathDetector를 찾을 수 없습니다.");
         }
-
-        //FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
-        //{
-        //    DependencyStatus dependencyStatus = task.Result;
-        //    if (dependencyStatus == DependencyStatus.Available)
-        //    {
-        //        // URL 명시적 설정
-        //        string myDatabaseUrl = "https://mindspace-vr-default-rtdb.firebaseio.com/";
-
-        //        //AppOptions를 사용해 주소를 직접 명시한다.
-        //         AppOptions options = new AppOptions
-        //            {
-        //                 DatabaseUrl = new System.Uri(myDatabaseUrl)
-        //             };
-
-        //        //앱 인스턴스 생성( 중복방지)
-        //        FirebaseApp app;
-        //        try
-        //        {
-        //            app = FirebaseApp.Create(options, "mindspace-app");
-        //        }
-        //        catch(System.Exception)
-        //        {
-        //            // 이미 같은 이름의 앱이 존재하면 가져다 씀.
-        //            app = FirebaseApp.GetInstance("mindspace-app");
-        //            Debug.Log("기존 Firebase앱 인스턴스 재사용");
-        //        }
-
-        //        // 가장 중요한 Reference 설정
-        //        _dbRef = FirebaseDatabase.GetInstance(app).RootReference;
-        //        _dbRef.Child("status").Child("isWearing").SetValueAsync(true);
-
-        //        if(_dbRef != null)
-        //        {
-        //            Debug.Log("<color=blue> Firebase 연결 최초 성공!</color>");
-        //        }
-        //        else
-        //        {
-        //            Debug.LogError("dbReference 설정 실패!");
-        //        }
-
-        //    }
-        //    else
-        //    {
-        //        Debug.LogError($"Firebase 초기화 실패 : {dependencyStatus}");
-        //    }
-        //});
+        
     }
     private void OnDestroy()
     {
@@ -129,6 +82,16 @@ public class HMDHandler : MonoBehaviour
 
         switch (_state)
         {
+            case State.RelaxedWait:
+                // 타이머를 Update에서 증가 (이벤트 빈도 아닌 실제 시간 기준)
+                _relaxedTimer += Time.deltaTime;
+                if(_relaxedTimer >= relaxedHoldDuration && !_guideTriggered)
+                {
+                    _guideTriggered = true;
+                    StartCoroutine(PlayGuideAndWait());
+                }
+                break;
+
             case State.WaitRemoval:
                 if (!OVRPlugin.userPresent)
                 {
@@ -157,50 +120,6 @@ public class HMDHandler : MonoBehaviour
     // 에디터 테스트 시에는 센서가 민감하므로 조건을 더 추가한다.
     // OVRPlugin.userPresent: HMD를 쓰고 있으면 true, 벗으면 false
     //bool isUserAbsent = !OVRPlugin.userPresent;
-
-    //// 1. 기기를 벗엇는지 감지
-    //if (isUserAbsent)
-    //{
-    //    unmountTimer += Time.deltaTime;
-
-    //    // 테스트 중에는 3초가 짧을 수 있으니 5초로 늘려보기.
-    //    if (unmountTimer >= 5f && !isTransitioned)
-    //    {
-    //        ExecuteSleepStep();
-    //    }
-    //}
-    //else
-    //{
-    //    //--- [ 수정 및 추가된 부분 시작 ] ---
-
-    //    // 기기를 다시 썼을 때
-    //    unmountTimer = 0f;
-
-    //    // 이미 수면 상태(false)로 넘어갔던 상태라면 다시 착용 상태(true)로 복구
-    //    if (isTransitioned)
-    //    {
-    //        isTransitioned = false; // 상태 플래그 초기화
-
-    //        if (_dbRef != null)
-    //        {
-    //            //Firebase의 status/isWearing을 다시 true로 변경
-    //            _dbRef.Child("status").Child("isWearing").SetValueAsync(true).ContinueWithOnMainThread(task =>
-    //            {
-    //                if (task.IsCompleted)
-    //                {
-    //                    Debug.Log("<color=green>기기 착용 감지: Firebase를 true로 복구했습니다.</color>");
-    //                }
-    //            });
-    //        }
-
-    //        // 선택사항 다시 썼을 때 배경음을 다시 키우고 싶다면 여기에 추가.
-    //        if (ambienceManager != null)
-    //        {
-    //            //ambienceManager.StartFadeInBGM(1.0f);   // 페이드인 함수가 있다면 호출
-    //        }
-    //    }
-
-
 
     // ----- Firebase 초기화 -----
     private void InitFirebase()
@@ -249,15 +168,8 @@ public class HMDHandler : MonoBehaviour
 
         if ((isRelaxed))
         {
-            _relaxedTimer += Time.deltaTime;
+            // 상태만 변경, 타이머는 Update에서 증가
             _state = State.RelaxedWait;
-
-            if (_relaxedTimer >= relaxedHoldDuration && !_guideTriggered)
-            {
-                // 이완 임계점 도달 -> 안내 음성 재생
-                _guideTriggered = true;
-                StartCoroutine(PlayGuideAndWait());
-            }
         }
         else
         {
@@ -330,6 +242,18 @@ public class HMDHandler : MonoBehaviour
         SetFirebase("status/sleepMusicStart", true);
         SetFirebase("status/sleepStartTime", System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
+        // 현재 씬 BGM을 모바일로 전달 (VR 음악이 모바일에서 이어서 재생됨)
+        // bgmClip 이름이 모바일 /public/souns/폴더의 파일명과 일치해야 함
+        if(ambienceManager != null && ambienceManager.bgmClip != null)
+        {
+            string bgmUrl = $"/sounds/{ambienceManager.bgmClip.name}.mp3";
+            SetFirebase("status/bgmUrl", bgmUrl);
+            Debug.Log($"[HMDHandler] VR BGM 모바일 전달: {bgmUrl}");
+        }
+        else
+        {
+            Debug.LogWarning("[HMDHandler] ambienceManager 또는 bgmClip 없음 -> bgmUrl 전송 불가");
+        }
         Debug.Log("[HMDHandler] Firebase 신호 전송 완료 -> 모바일 수면 음악 시작 대기");
     }
     // 재착용 복구
@@ -377,11 +301,12 @@ public class HMDHandler : MonoBehaviour
     {
         switch(status)
         {
-            case "SLOW": return 1;
-            case "NORMAL": return 2;
-            case "FAST": return 3;
-            case "UNKNOWN": return -1;
-            default: return -1;
+            case "Level1": return 1;
+            case "Level2": return 2;
+            case "Level3": return 3;
+            case "Level4": return 4;
+            case "Level5": return 5;
+            default: return -1;     // UNKNOWN 등
         }
     }
 

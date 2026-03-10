@@ -41,6 +41,7 @@
   <Project Path="Unity.XR.MetaOpenXR.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Runtime.csproj" />
   <Project Path="Unity.VisualScripting.Core.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Unity.UnifiedRayTracing.Runtime.csproj" />
   <Project Path="Unity.VisualScripting.State.Editor.csproj" />
   <Project Path="Unity.AI.Navigation.Editor.ConversionSystem.csproj" />
@@ -107,7 +108,6 @@
   <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Meta.XR.Editor.Settings.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.Hands.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Unity.XR.MetaOpenXR.Editor.csproj" />
   <Project Path="Meta.XR.Editor.Id.csproj" />
   <Project Path="Unity.XR.Hands.Samples.HandCapture.Editor.csproj" />

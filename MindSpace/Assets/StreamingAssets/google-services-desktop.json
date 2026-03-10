@@ -2,7 +2,8 @@
   "project_info": {
     "project_number": "269825363781",
     "project_id": "mindspace-vr",
-    "storage_bucket": "mindspace-vr.firebasestorage.app"
+    "storage_bucket": "mindspace-vr.firebasestorage.app",
+    "firebase_url": "https://mindspace-vr-default-rtdb.firebaseio.com"
   },
   "client": [
     {

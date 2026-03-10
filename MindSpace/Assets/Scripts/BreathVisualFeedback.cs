@@ -12,6 +12,13 @@ public class BreathVisualFeedback : MonoBehaviour
     public float maxScale = 1.4f;
     public float breathAnimSpeed = 2f;
 
+    [Header("플레이어 앞 위치 추적")]
+    [Tooltip("OVRCameraRing의 CenterEyeAnchor 연결 (비워두면 자동 탐색")]
+    public Transform playerCamera;
+    public float distanceFromPlayer = 1.5f;
+    public float heightOffset = -0.2f;
+    public float followSpeed = 5f;
+
     [Header("파티클 시스템")]
     public ParticleSystem ambientParticles;
 
@@ -22,11 +29,12 @@ public class BreathVisualFeedback : MonoBehaviour
     public TextMeshProUGUI StressLevelText;
 
     [Header("상태별 색상")]
-    public Color colorNormal = new Color(0.29f, 0.86f, 0.50f);  // 초록
-    public Color colorSlow = new Color(0.38f, 0.65f, 0.98f);    // 파랑
-    public Color colorFast = new Color(0.97f, 0.43f, 0.43f);    // 빨강
-    public Color colorHold = new Color(0.98f, 0.80f, 0.08f);    // 노랑
-    public Color colorUnknown = new Color(0.42f, 0.45f, 0.50f); // 회색
+    public Color colorLevel1 = new Color(0.38f, 0.65f, 0.98f);    // 파랑 - 매우 안정
+    public Color colorLevel2 = new Color(0.29f, 0.86f, 0.50f);    // 초록 - 안정
+    public Color colorLevel3 = new Color(0.98f, 0.80f, 0.08f);    // 노랑 - 보통
+    public Color colorLevel4 = new Color(0.97f, 0.43f, 0.43f);    // 주황 - 높음
+    public Color colorLevel5 = new Color(0.42f, 0.45f, 0.50f);   // 빨강 - 매우 높음
+    public Color colorUnknown = new Color(0.42f, 0.45f, 0.50f);     // 회색 - 측정 중
 
     [Header("사운드")]
     public AudioSource inhaleSound;
@@ -40,6 +48,11 @@ public class BreathVisualFeedback : MonoBehaviour
     private Coroutine _alertCoroutine;
 
     // ----- 초기화 -----
+    private void Awake()
+    {
+        // 씬 이동해도 구체 유지
+        DontDestroyOnLoad(gameObject);
+    }
     private void Start()
     {
         //  BreathDetector 이벤트 구독
@@ -55,6 +68,20 @@ public class BreathVisualFeedback : MonoBehaviour
         _targetScale = minScale;
         _targetColor = colorUnknown;
         _currentState = null;
+
+        // PlayerCamera 자동 탐색
+        if(playerCamera == null)
+        {
+            var ovrRig = FindFirstObjectByType<OVRCameraRig>();
+            if(ovrRig != null)
+            {
+                playerCamera = ovrRig.centerEyeAnchor;
+            }
+            else if (Camera.main != null)
+            {
+                playerCamera = Camera.main.transform;
+            }
+        }
     }
 
     private void OnDestroy()
@@ -73,12 +100,12 @@ public class BreathVisualFeedback : MonoBehaviour
         // 상태별 색상 결정
         _targetColor = state.status switch
         {
-            "Level1" => colorUnknown,
-            "Level2" => colorSlow,
-            "Level3" => colorNormal,
-            "Level4" => colorFast,
-            "Level5" => colorHold,
-            _        => colorUnknown,
+            "Level1" => colorLevel1,        // 파랑 - 매우 안정
+            "Level2" => colorLevel2,        // 초록 - 안정,정상
+            "Level3" => colorLevel3,        // 노랑 - 보통,약간주의
+            "Level4" => colorLevel4,      // 주황 - 높음
+            "Level5" => colorLevel5,      // 빨강 - 매우높음
+            _        => colorUnknown,   // 회색 - 측정중
         };
 
         // 들숨/날숨 목표 스케일
@@ -95,11 +122,10 @@ public class BreathVisualFeedback : MonoBehaviour
         UpdateUI(state);
 
         // 경고 상황 처리
-        if(state.status == "Level4" || state.status == "Level5")
+        if(state.status == "Level5")
         {
             TriggerAlert(state.status);
         }
-
     }
 
     // AudioSource가 null 이거나 Clip이 없으면 조용히 무시
@@ -114,8 +140,25 @@ public class BreathVisualFeedback : MonoBehaviour
     // ----- 매 프레임 애니메이션 -----
     private void Update()
     {
+        FollowPlayer();
         AnimateGuideSphere();
         AnimateParticles();
+    }
+
+    private void FollowPlayer()
+    {
+        if (playerCamera == null) return;
+
+        Vector3 forward = playerCamera.forward;
+        forward.y = 0;
+        if (forward == Vector3.zero) return;
+        forward.Normalize();
+
+        Vector3 targetPos = playerCamera.position + forward * distanceFromPlayer + Vector3.up * heightOffset;
+
+        transform.position = Vector3.Lerp(transform.position, targetPos, Time.deltaTime * followSpeed);
+        transform.LookAt(playerCamera.position);
+        transform.Rotate(0, 180, 0);
     }
 
     private void AnimateGuideSphere()

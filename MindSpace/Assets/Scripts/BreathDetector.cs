@@ -133,9 +133,16 @@ public class BreathDetector : MonoBehaviour
     // ------ WebSocket 연결 관리 ------
     private IEnumerator ConnectLoop()
     {
-        // 연결 실패 / 끊김 시 5초 후 자동 재연결하는 무한 루프
+        // 연결 실패 / 끊김 시에만 재연결, 연결 중엔 대기
         while (true)
         {
+            // 이미 연결되어 있으면 재연결 안 함
+            if(IsConnected)
+            {
+                yield return new WaitForSeconds(1f) ;
+                continue;
+            }
+
             var task = ConnectAsync();
             yield return new WaitUntil(() => task.IsCompleted);
 
@@ -143,8 +150,13 @@ public class BreathDetector : MonoBehaviour
             {
                 Debug.LogWarning($"[BreathDerector] 연결 실패: {task.Exception?.GetBaseException().Message}");
             }
-            Debug.Log("[BreathDetector] 5초 후 재연결 시도...");
-            yield return new WaitForSeconds(5f);
+
+            // 연결 끊겼을 때만 재연결 대기
+            if (!IsConnected)
+            {
+                Debug.Log("[BreathDetector] 5초 후 재연결 시도...");
+                yield return new WaitForSeconds(5f);
+            }
         }
     }
 
@@ -192,7 +204,6 @@ public class BreathDetector : MonoBehaviour
     }
 
     // ----- 서버 메세지 수신 루프 ------
-    
     private async Task ReceiveLoopAsync()
     {
         // 연결이 유지되는 동안 서버에서 오는 메시지를 계속 수신

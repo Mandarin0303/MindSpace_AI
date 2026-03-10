@@ -72,7 +72,7 @@ function App() {
         <div style={{
             textAlign: 'center',
             backgroundColor: isSleepMode ? '#1a1a2e' : '#2c3e50',
-            color: isSleepMode ? '#000' : '#fff',
+            color: isSleepMode ? '#eee' : '#fff',
             minheight: '100vh',
             transition: '0.5s',
             padding: '20px',
@@ -143,7 +143,7 @@ function App() {
                         textAlign: 'left',
                         lineHeight: '1.6',
                     }}>
-                    {logs.lenth === 0 && (
+                    {logs.length === 0 && (
                         <span style={{ opacity: 0.5 }}>로그 대기중...</span>
                     )}
                     {logs.map((log, i) =>(
