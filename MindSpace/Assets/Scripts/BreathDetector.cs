@@ -52,7 +52,8 @@ public class BreathDetector : MonoBehaviour
     // 공개 프로퍼티 ( 다른 스크립트에서 접근 )
     public static BreathDetector Current { get; private set; }
     public BreathState LatestState { get; private set; } = new BreathState { status = "UNKNOWN" };
-    public bool IsConnected => _ws != null && _ws.State == SysWS.WebSocketState.Open;
+    private bool _isConnected = false;
+    public bool IsConnected => _isConnected;
 
     //***[테스트후 주석삭제] 측정 완료시 true로 설정
     public static bool MeasureDone { get; set; } = false;
@@ -83,8 +84,6 @@ public class BreathDetector : MonoBehaviour
     private readonly System.Collections.Generic.Queue<Action> _mainThreadQueue
         = new System.Collections.Generic.Queue<Action>();
 
-
-    // ------ Unity 생명 주기 -------
     private void Awake()
     {
         Current = this;
@@ -134,7 +133,7 @@ public class BreathDetector : MonoBehaviour
     private IEnumerator ConnectLoop()
     {
         // 연결 실패 / 끊김 시에만 재연결, 연결 중엔 대기
-        while (true)
+        while (!_cts.Token.IsCancellationRequested)
         {
             // 이미 연결되어 있으면 재연결 안 함
             if(IsConnected)
@@ -160,21 +159,6 @@ public class BreathDetector : MonoBehaviour
         }
     }
 
-    ///
-    private IEnumerator ConnectCoroutine()
-    {
-        // Task를 코로틴으로 래핑 : async/await Task를 유니티 코루틴에서 사용
-        var task = ConnectAsync();
-
-        // Task가 완료될 때까지 매 프레임 대기
-        yield return new WaitUntil(() => task.IsCompleted);
-
-        if(task.IsFaulted)
-        {
-            Debug.LogWarning($"[BreathDetector] 연결 실패: {task.Exception?.GetBaseException().Message}");
-        }
-    }
-
     private async Task ConnectAsync()
     {
         try
@@ -188,16 +172,20 @@ public class BreathDetector : MonoBehaviour
             await _ws.ConnectAsync(new Uri(serverUrl), _cts.Token);
 
             Debug.Log("[BreathDetector] 서버 연결됨");
+            _isConnected = true;
             StartMic();
 
             await ReceiveLoopAsync();
+            _isConnected = false;
         }
         catch (OperationCanceledException)
         {
+            _isConnected = false;
             Debug.Log("[BreathDetector] WebSocket 연결 취소됨(정상 종료)");
         }
         catch(Exception e)
         {
+            _isConnected = false;
             Debug.LogWarning($"[BreathDetector] 연결 오류: {e.Message}");
             StopMic();
         }
@@ -331,6 +319,21 @@ public class BreathDetector : MonoBehaviour
         _micRunning = true;
 
         Debug.Log($"[BreathDetector] 마이크 시작: {device}");
+    }
+
+    // 외부에서 호출 가능 - VR 탈착 시 호흡 측정 완전 종료
+    public async void StopAll()
+    {
+        StopMic();
+        if (_ws != null && _ws.State == SysWS.WebSocketState.Open)
+        {
+            await _ws.CloseAsync(
+                SysWS.WebSocketCloseStatus.NormalClosure,
+                "수면 모드 진입",
+                CancellationToken.None);
+        }
+        _cts?.Cancel();
+        Debug.Log("[BreathDetector] 호흡 측정 완료 (수면 모드 진입)");
     }
 
     private void StopMic()

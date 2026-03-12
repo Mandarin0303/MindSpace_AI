@@ -2,7 +2,6 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using JetBrains.Annotations;
 
 public class BreathStressSeceneController : MonoBehaviour
 {
@@ -147,29 +146,27 @@ public class BreathStressSeceneController : MonoBehaviour
             breathVisualFeedback.gameObject.SetActive(true);
         }
 
-        // 서버 연결이 이미 됐으면 바로 시작, 아직이면 대기
-        if (BreathDetector.Current != null && BreathDetector.Current.IsConnected)
-        {
-            StartCoroutine(StartMeasureAfterDelay());
-        }
-        else
-        {
-            UpdateStatusText("서버 연결 대기 중...");
-            // WaitForConnection 코루틴이 연결 완료 후 자동으로 시작해줌.
-        }
+        // 연결 여부와 관계없이 항상 시작 (StartMeasureAfterDelay 내부에서 연결 대기)
+        UpdateStatusText("서버 연결 대기 중...");
+        StartCoroutine(StartMeasureAfterDelay());
     }
 
     // ----- 서버 연결 대기 (백그라운드) -----
     private IEnumerator WaitForConnection()
     {
-        // 서버에 연결될 때까지 대기 (최대 30초)
+        // UI 표시 전용 - confirmText에 연결 상태 보여줌 (측정 시간은 StartMeasureAfterDelay가 담당)
         float timeout = 30f;
         while (timeout > 0)
         {
             // BreathDetector가 연결됐으면 루프 탈출
             if (BreathDetector.Current != null && BreathDetector.Current.IsConnected)
             {
-                break;
+                Debug.Log("[BreathStressCtrl] 서버 연결 완료!");
+                if (!_confirmed && confirmText != null)
+                {
+                    confirmText.text = "서버 연결 완료!\n측정을 시작하시겠습니까?";
+                }
+                yield break;
             }
             timeout -= Time.deltaTime;
             if (!_confirmed && confirmText != null)
@@ -178,34 +175,28 @@ public class BreathStressSeceneController : MonoBehaviour
             }
             yield return null;
         }
-        if (BreathDetector.Current == null || !BreathDetector.Current.IsConnected)
-        {
-            UpdateStatusText("서버 연결 실패! Python 서버를 확인해 주세요.");
-            if (confirmText != null)
-            {
-                confirmText.text = "서버 연결 실패!\nPython 서버를 확인해주세요.";
-            }
-            Debug.LogError("[BreathStressCtrl] 서버 연결 타임아웃!");
-            yield break;
-        }
-
-        // 연결 완료
-        Debug.Log("[BreathStressCtrl] 서버 연결 완료!");
+        // 30초 타임아웃 - UI만 업데이트
+        Debug.LogWarning("[BreathStressCtrl] 서버 연결 타임아웃(측정 대기 계속 중)");
         if (!_confirmed && confirmText != null)
         {
-            confirmText.text = "서버 연결 완료!\n측정을 시작하시곘습니까?";
-        }
-        if (_confirmed)
-        {
-            StartCoroutine(StartMeasureAfterDelay());
+            confirmText.text = "서버 연결 실패!\nPython 서버를 확인해 주세요.";
         }
 
     }
     private IEnumerator StartMeasureAfterDelay()
     {
-        // 서버 연결 안됐으면 대기
-        while (!BreathDetector.Current.IsConnected)
+        // 서버 연결될 때까지 무한 대기
+        float diagTimer = 0f;
+        while (BreathDetector.Current == null || !BreathDetector.Current.IsConnected)
         {
+            diagTimer += Time.deltaTime;
+            if(diagTimer >= 3f)
+            {
+                bool isNull = BreathDetector.Current == null;
+                bool conn = !isNull && BreathDetector.Current.IsConnected;
+                Debug.LogWarning($"[BreathStressCtrl] 연결 대기중... Current=null:{isNull}|isConnected:{conn}");
+                diagTimer = 0f;
+            }
             yield return null;
         }
 

@@ -6,11 +6,6 @@ import { db } from '../firebase';
 const MOTION_THRESHOLD = 1.8;
 const MOTION_COOLDOWN_MS = 5000;   //뒤척임 후 재감지 대기 (5초)
 const STARTUP_COOLDOWN_MS = 5000;   // 수면 시작 직후 오감지 방지 (5초)
-//const SLEEP_MUSIC_URL = '/sounds/sleep_music.mp3';
-//const REINDUCTION_SOUND_URL = '/sounds/reinduction_binaural.mp3';
-
-// iOS 백그라운드 유지용 무음 오디오(base64 인토딩된 최소 무음 mp3)
-//const SILENT_AUDIO_SRC = '/sounds/silent.mp3';
 
 // ----- 바이노럴 비트 설정 -----
 const BINAURAL_BASE_FREQ = 200;     // 기준 주파수(Hz)
@@ -23,20 +18,18 @@ const VOLUME_SLEEP = 0.1;               // 잠든 것으로 판단 시 볼륨 (�
 const VOLUME_MOTION = 0.8;             // 뒤척임 감지 시 볼륨 (크게)
 const VOLUME_FADE_SEC = 1.5;       // 일반 볼륨 전환 시간
 const VOLUME_FADEIN_SEC = 5.0;     // 수면 시작 시 서서히 커지는 시간(초) vr->모바일
-//const SLEEP_DETECT_TIMEOUT = 30000;     // 30초 가만히 있으면 잠든 것으로 판단
-//const MOTION_QUIET_TIMEOUT = 30000;     // 뒤척임 후 30초 가만히 있으면 다시 잠든 것으로 판단
 
 // ----- 타이머 -----
 const SLEEP_DETECT_TIMEOUT = 6000;     // 6초 가만히 있으면 잠든 것으로 판단
 
-// ------------------------------
+
+
 export function useSleepMode() {
 
     // ----- 외부에 노출할 상태 -----
     const [isSleepMode, setIsSleepMode] = useState(false);
-    const [motionCount, setMotionCount] = useState(0);   // 뒤척임 감지 횟수
-    const [sleepStatus, setSleepStatus] = useState('idle');
-    // idle | sleeping | motion_detected
+    const [motionCount, setMotionCount] = useState(0);      // 뒤척임 감지 횟수
+    const [sleepStatus, setSleepStatus] = useState('idle'); // idle | sleeping | motion_detected
 
     // ----- 오디오 -----
     const audioCtxRef = useRef(null);       // Web Audio Context (바이노럴용)
@@ -48,26 +41,8 @@ export function useSleepMode() {
     const oscRightRef = useRef(null);       // 바이노럴 우채널 oscillator
     const binauralGainRef = useRef(null);   // 바이노럴 볼륨 제어 노드
 
-    // 배경음 노드 & GainNode(볼륨 제어용으로 분리 저장)
-    //const sleepMusicNodeRef = useRef(null);
-   // const sleepMusicGainRef = useRef(null);     // 수면 음악 전용 GainNode ref
-   // const reinductionNodeRef = useRef(null);
-
-    // 미리 로드된 버퍼 (ios 대응)
-    //const sleepMusicBufferRef = useRef(null);
-    //const reinductionBufferRef = useRef(null);
-
-    // 볼륨 자동 복귀 타이머 ref
-    //const volumeRestoreTimerRef = useRef(null);
-
-    // 잠든 것으로 판단하는 타이머
-    //const sleepDetectTimerRef = useRef(null);
-
     // ----- 볼륨 페이드 -----
     const volumeFadeIntervalRef = useRef(null);
-
-    // 수면 음악 HTML Audio ref ( iOS 백그라운드 생존용)
-    //const sleepMusicHtmlRef = useRef(null);
 
     // 기타
     const prevAccelRef = useRef({ x: 0, y: 0, z: 0 });
@@ -137,28 +112,34 @@ export function useSleepMode() {
     }, []);
 
     // ----- VR BGM 재생 (Firebase에서 받은 URL로)
+    // 핵심: silentAudio는 절대 건드리지 않음!
+    // bgmHtmlRef(버튼 클릭 시 미리 만든 Audio)의 src만 교체 -> iOS 재생 권한 유지
     const playBgm = useCallback((url, volume = VOLUME_NORMAL) => {
+        console.log('[playBgm] 진입, url:', url);
         try {
-            // 같은 URL이면 볼륨만 조정
-            if (bgmHtmlRef.current && currentBgmUrlRef.current === url) {
+            // 같은 URL이고 실제로 재생 중이면 볼륨만 조정
+            if (bgmHtmlRef.current && currentBgmUrlRef.current === url && !bgmHtmlRef.current.paused && bgmHtmlRef.current.src.includes(url)) {
+                console.log('[playBgm] 같은 URL - 볼륨만 조정');
                 setBgmVolume(volume);
                 return;
             }
 
-            // 기존 BGM 정지
-            if (bgmHtmlRef.current) {
-                bgmHtmlRef.current.pause();
-                bgmHtmlRef.current.src = '';
-                bgmHtmlRef.current = null;
+            // bgmHtmlRef 없으면 경고 (prepareSleepMode 먼저 호출 필요)
+            if (!bgmHtmlRef.current) {
+                console.warn('[playBgm] bgmHtmlRef 없음 - 수면 준비 버튼을 먼저 눌러주세요');
+                return;
             }
 
-            const audio = new Audio(url);
+            // 기존 재생 중이면 정지
+            bgmHtmlRef.current.pause();
+
+            // src만 교체 (Audio 객체 재사용 - iOS 재생 권한 유지!)
+            const audio = bgmHtmlRef.current;
+            audio.src = url;
             audio.loop = true;
-            audio.volume = 0;   // 0에서 시작해서 페이드 인
-            audio.setAttribute('playsinline', '');
-            audio.setAttribute('webkit-playsinline', '');
-            bgmHtmlRef.current = audio;
+            audio.volume = 0;
             currentBgmUrlRef.current = url;
+            console.log('[playBgm] src 교체 완료:', url);
 
             // MediaSession API 등록 - iOS가 '음악 앱'으로 인식 -> 화면 꺼져도 재생 유지
             if ('mediaSession' in navigator) {
@@ -179,6 +160,7 @@ export function useSleepMode() {
                 .then(() => {
                     setBgmVolume(volume, VOLUME_FADEIN_SEC);
                     console.log(`[useSleepMode] VR BGM 재생: ${url}`);
+                    console.log(`[playBgm] 재생 후 볼륨: ${audio.volume}, paused: ${audio.paused}`);
                 })
                 .catch(e => console.warn('[useSleepMode] BGM 재생 실패: ', e));
         } catch (e) {
@@ -193,6 +175,7 @@ export function useSleepMode() {
     // 바이노럴 볼륨 조절(외부 호출 가능)
     const setBinauralVolume = useCallback((volume) => {
         if (!binauralGainRef.current || !audioCtxRef.current) return;
+        if (!isFinite(volume) || volume < 0) return;
         const now = audioCtxRef.current.currentTime;
         binauralGainRef.current.gain.cancelScheduledValues(now);
         binauralGainRef.current.gain.setValueAtTime(binauralGainRef.current.gain.value, now);
@@ -301,6 +284,14 @@ export function useSleepMode() {
         if (delta > MOTION_THRESHOLD) {
             console.log(`[useSleepMode] 뒤척임 감지! delta=${delta.toFixed(2)}`);
 
+            // Firebase에 로그 기록
+            const newLogRef = ref(db, 'sleepLog/' + Date.now());
+            set(newLogRef, {
+                timestamp: Date.now(),
+                motionDelta: delta.toFixed(2),
+                status: 'motion_dextexted'
+            });
+
             // 상태 업데이트
             setMotionCount(prev => prev + 1);
             setSleepStatus('motion_detected');
@@ -369,24 +360,69 @@ export function useSleepMode() {
                     try {
                         await audioCtxRef.current.resume(); } catch (_) { }
                 }
-                // BGM 끊겼으면 재시작
+                // BGM 끊겼으면 재시작 (src 교체 없이 play()만!)
                 if (bgmHtmlRef.current?.paused) {
-                    bgmHtmlRef.current.play().catch(e => 
-                        console.warn('[useSleepMode] BGM 재시작 실패:', e));
+                    bgmHtmlRef.current.play().catch(() => { });
                 }
 
-                // silent audio가 끊겼으면 재시작 ( 뒤척임 후 iOS에서 끊길 수 있음)
+                // silentAudio 끊겼으면 재시작
                 if (silentAudioRef.current?.paused) {
                     silentAudioRef.current.play().catch(() => { });
                 }
 
+                // Wake Lock 재획득 (화면 켜질 때 다시 잠금)
+                try {
+                    if ('wakeLock' in navigator && !wakeLockRef.current) {
+                        wakeLockRef.current = await navigator.wakeLock.request('screen');
+                        console.log('[useSleepMode] Wake Lock 재획득');
+                    }
+                } catch (_) { }
+
             } else {
-                console.log(`[useSleepMode] 화면 꺼짐 - 음악: ${bgmHtmlRef.current?.paused ? '중단' : '재생중'}`);
+                console.log(`[useSleepMode] 화면 꺼짐 - BGM: ${bgmHtmlRef.current?.paused ? '중단' : '재생중'} / silentAudio: ${silentAudioRef.current?.paused?'중단':'재생중'}`);
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, []);
+    }, [playBgm]);
+
+    // ----- 수면 준비 (버튼 클릭용)-AudioContext만 초기화하고 Firebase 신호 대기 -----
+    // 버튼 클릭 시점에 BGM Audio 미리 생성 -> iOS 재생 권한 획득
+    // silentAudio는 별도로 항상 유지 -> Web Audio 화면 꺼져도 생존
+    const prepareSleepMode = useCallback(async () => {
+        if (isSleepModeRef.current) return;
+
+        // 기존 BGM 정리
+        if (bgmHtmlRef.current) {
+            bgmHtmlRef.current.pause();
+            bgmHtmlRef.current = null;
+        }
+
+        // BGM 전용 Audio 미리 생성 (iOS 재생 권한 획득)
+        const bgmAudio = new Audio();
+        bgmAudio.loop = true;
+        bgmAudio.volume = 0;
+        bgmAudio.play().then(() => bgmAudio.pause()).catch(() => { });
+        bgmHtmlRef.current = bgmAudio;
+        currentBgmUrlRef.current = null;    // 이전 세션 URL 초기화
+        console.log('[useSleepMode] BGM Audio 미리 생성 완료 (iOS 재생 권한 획득');
+
+        // iOS : DeviceMotion 권한 요청 (사용자 제스처 내에서 해야 함)
+        startMotionDetection();
+
+        // AudioContext 초기화 (사용자 제스처 내에서만 iOS 허용)
+        initAudioContext();
+
+        //iOS 백그라운드 트릭 시작, silentAudio는 BGM과 별도로 항상 유지!
+        startSilentAudio();
+
+        if (audioCtxRef.current?.state === 'suspended') {
+            await audioCtxRef.current.resume();
+        }
+
+        console.log('[useSleepMode] 수면 준비 완료 - VR 기기 탈착 신호 대기 중...');
+        setSleepStatus('waiting');
+    }, [initAudioContext, startMotionDetection, startSilentAudio]);
 
     // ----- 수면 모드 진입 (외부 호출 또는 Firebase 신호) -----
     const startSleepMode = useCallback(async (bgmUrl) => {
@@ -399,52 +435,53 @@ export function useSleepMode() {
             console.log('[useSleepMode] 시작 쿨다운 해제 -> 뒤척임 감지 시작');
         }, STARTUP_COOLDOWN_MS);
 
-        // iOS: DeviceMotion 권한 요청을 가장 먼저 (비동기 작업 전에 해야 제스처 체인 유지)
-        startMotionDetection();
-
-        // AudioContext 초기화(사용자 제스처 내에서만 ios 허용)
-        initAudioContext();
-
-        // VR에서 이어받은 BGM 재생 (볼륨 0 -> 8초에 걸쳐 VOLUME_NORMAL)
+        // BGM 재생 (bgmHtmlRef는 prepareSleepMode에서 이미 생성됨, src만 교체)
         if (bgmUrl) {
+            console.log('[startSleepMode] playBgm 호출 시도:', bgmUrl);
             playBgm(bgmUrl, VOLUME_NORMAL);
         } else {
-            console.warn('[useSleepMode] bgmUrl 없음 - VR Firebase 신호 대기 중');
+            console.warn('[useSleepMode] bgmUrl 없음');
         }
 
-        // iOS 백그라운드 트릭 시작 (사용자 제스처 체인 안에서 호출해야 iOS에서 동작)
-        startSilentAudio();
-
-        // 이후 비동기 작업 
-        if (audioCtxRef.current.state === 'suspended') {
+        if (audioCtxRef.current?.state === 'suspended') {
             await audioCtxRef.current.resume();
         }
 
         isSleepModeRef.current = true;
         setIsSleepMode(true);
-        setSleepStatus('sleeping')
+        setSleepStatus('sleeping');
 
-        // 바이노럴 비트 시작 (델타파, 볼륨 0 -> 서서히 )
-        startBinauralBeat(DELTA_BEAT_FREQ, 0);         // 볼륨 0으로 시작
-        setTimeout(() => setBinauralVolume(0.2), 300); // 살짝 딜레이 후 서서히 올라옴
+        startBinauralBeat(DELTA_BEAT_FREQ, 0);
+        setTimeout(() => setBinauralVolume(0.2), 300);
 
-        // 수면 시작 후 30초 가만히 있으면 잠든 것으로 판단해서 볼륨 줄임
         startSleepDetectTimer(() => {
             setBgmVolume(VOLUME_SLEEP);
             setBinauralVolume(0.1);
             setSleepStatus('deeply_sleeping');
-            console.log('[useSleepMode] 30초 가만히 -> 잠든 것으로 판단, 볼륨 DOWN');
+            console.log('[useSleepMode] 6초 가만히 -> 잠든 것으로 판단, 볼륨 DOWN');
         });
+
+        set(ref(db, 'status/sleepStartTime'), Date.now());
+        console.log('[useSleepMode] 수면 모드 시작');
+
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+                console.log('[useSleepMode] Wake Lock 획득 - 화면 유지');
+                wakeLockRef.current.addEventListener('release', () => {
+                    console.log('[useSleepMode] Wake Lock 해제됨');
+                });
+            }
+        } catch (e) {
+            console.warn('[useSleepMode] Wake Lock 실패(iOS 미지원)', e);
+        }
 
         // Firebase 상태 기록
         set(ref(db, 'status/sleepStartTime'), Date.now());
         console.log('[useSleepMode] 수면 모드 시작');
 
-        // Wake Lock 제거 - 화면이 꺼져도 무음 오디오로 음악 유지
-        //requestWakeLock();   // 화면은 안꺼지게 하고싶으면 주석 해제
 
-
-    }, [initAudioContext, playBgm, startBinauralBeat, startMotionDetection, startSilentAudio, startSleepDetectTimer, setBgmVolume, setBinauralVolume]);
+    }, [playBgm, startBinauralBeat, startSleepDetectTimer, setBgmVolume, setBinauralVolume]);
 
     // ----- 수면 모드 종료 -----
     const stopSleepMode = useCallback(() => {
@@ -485,7 +522,12 @@ export function useSleepMode() {
 
                 // 사용자가 이미 버튼을 눌러서 오디오 컨텍스트가 활성화되어 있다면 자동 재생 시도
                 if (audioCtxRef.current) {
-                    startSleepMode(currentBgmUrlRef.current);
+                    //bgmUrl은 별도 리스너에서 currentBgmUrlRef에 저장되어 있음
+                    //SleepMusicStart보다 bgmUrl이 먼저 올수도 있으믈 약간 딜레이 후 시도
+                    setTimeout(() => {
+                        startSleepMode(currentBgmUrlRef.current);
+                        console.log(`[useSleepMode] 자동 수면 모드 시작, bgmUrl: ${currentBgmUrlRef.current}`);
+                    }, 500);
                 } else {
                     console.warn('[useSleepMode] AudioContext 미생성 - 수면 준비 버튼을 먼저 눌러주세요.');
                 }
@@ -500,7 +542,7 @@ export function useSleepMode() {
             if (!bgmUrl) return;
 
             currentBgmUrlRef.current = bgmUrl;
-            console.log('[useSleepMode] Firebase bgmUrl: ${bgmUrl]');
+            console.log(`[useSleepMode] Firebase bgmUrl: ${bgmUrl}`);
 
             // 수면 모드 중에 씬이 바뀌면 BGM 교체
             if (isSleepModeRef.current) {
@@ -532,7 +574,7 @@ export function useSleepMode() {
             if (audioCtxRef.current) {
                 audioCtxRef.current.close();
             }
-        };
+        }; 
     }, [stopAllAudio, handleDeviceMotion]);
 
     // ----- 혹 반환값 -----
@@ -540,7 +582,8 @@ export function useSleepMode() {
         isSleepMode,    // boolean - 현재 수면 모드 여부
         sleepStatus,    // string - 'idle'|'sleeping'|'motion_detected'
         motionCount,    // number - 뒤척임 감지 총 횟수
-        startSleepMode, // () => void - 버튼 onClick 등에 연결
+        prepareSleepMode,   // 버튼 클릭용 - AudioContext 초기화 + 대기
+        startSleepMode, // () => void - 버튼 onClick 등에 연결 , Firebase 신호 또는 내부 자동 호출용
         stopSleepMode,  // () => void - 수동 종료 시
         setBinauralVolume,  // 바이노럴 볼륨 조절 (0.0~1.0)
         setBgmVolume,   // 외부에서 수동 볼륨 조절 시

@@ -47,6 +47,9 @@ public class BreathVisualFeedback : MonoBehaviour
     private Color _targetColor;
     private Coroutine _alertCoroutine;
 
+    // ----- 이벤트 구독 완료 여부 -----
+    private bool _subscribed = false;
+
     // ----- 초기화 -----
     private void Awake()
     {
@@ -55,15 +58,7 @@ public class BreathVisualFeedback : MonoBehaviour
     }
     private void Start()
     {
-        //  BreathDetector 이벤트 구독
-        if(BreathDetector.Current != null)
-        {
-            BreathDetector.Current.onBreathUpdate.AddListener(OnBreathUpdated);
-        }
-        else
-        {
-            Debug.LogWarning("[BreathVisualFeedback] BreathDetector를 찾을 수 없습니다.");
-        }
+        TrySubscribe();
 
         _targetScale = minScale;
         _targetColor = colorUnknown;
@@ -82,6 +77,16 @@ public class BreathVisualFeedback : MonoBehaviour
                 playerCamera = Camera.main.transform;
             }
         }
+    }
+    // BreathDetector가 아직 없으면 매 프레임 재시도
+    private void TrySubscribe()
+    {
+        if (_subscribed) return;
+        if (BreathDetector.Current == null) return;
+
+        BreathDetector.Current.onBreathUpdate.AddListener(OnBreathUpdated);
+        _subscribed = true;
+        Debug.Log("[BreathVisualFeedback] BreathDetector 이벤트 구독 완료");
     }
 
     private void OnDestroy()
@@ -121,11 +126,6 @@ public class BreathVisualFeedback : MonoBehaviour
         // UI 업데이트
         UpdateUI(state);
 
-        // 경고 상황 처리
-        if(state.status == "Level5")
-        {
-            TriggerAlert(state.status);
-        }
     }
 
     // AudioSource가 null 이거나 Clip이 없으면 조용히 무시
@@ -140,10 +140,19 @@ public class BreathVisualFeedback : MonoBehaviour
     // ----- 매 프레임 애니메이션 -----
     private void Update()
     {
+        TrySubscribe();     // BreathDetector 구독 안 됐으면 재시도
         FollowPlayer();
         AnimateGuideSphere();
         AnimateParticles();
+        TryFindCamera();
     }
+    private void TryFindCamera()
+    {
+        if(playerCamera != null) return;
+        var ovrRig = FindFirstObjectByType<OVRCameraRig>();
+        if (ovrRig != null) playerCamera = ovrRig.centerEyeAnchor;
+    }
+    
 
     private void FollowPlayer()
     {
@@ -219,31 +228,5 @@ public class BreathVisualFeedback : MonoBehaviour
             confidenceBar.fillAmount = state.confidence;
             confidenceBar.color = _targetColor;
         }
-    }
-
-    // ----- 경고 알림 ------
-    private void TriggerAlert(string status)
-    {
-        if (_alertCoroutine != null) StopCoroutine(_alertCoroutine);
-        _alertCoroutine = StartCoroutine(FlashAlert(status));
-    }
-
-    private IEnumerator FlashAlert(string status)
-    {
-        // 화면 가장자리를 경고 색으로 2회 깜빡임
-        // 실제로는 Post Processing Vignette 등으로 구현 권장
-        Debug.LogWarning($"[BreathAlert] {status} 감지!");
-
-        // TODO: VR 환경에 맞는 경고 UI 추가
-        // 예 : XR Rig 하위 Canvas에 Vignette 이미지 표시
-        for (int i =0; i<2; i++)
-        {
-            // flashImage?.SetActive(true)l
-            yield return new WaitForSeconds(0.3f);
-            // flashImage?.SetActive(false);
-            yield return new WaitForSeconds(0.3f);
-        }
-
-        _alertCoroutine = null;
     }
 }

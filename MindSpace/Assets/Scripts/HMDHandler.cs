@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using System.Collections;   // 코루틴을 위해 필요
 using Firebase;
 using Firebase.Database;
@@ -46,6 +47,29 @@ public class HMDHandler : MonoBehaviour
     private void Awake()
     {
         DontDestroyOnLoad(gameObject);
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+    // 씬 전환 시 새 씬의 SceneAmbience 자동 탐색
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Firebase 준비됐을 때만 씬 이름 전송
+        if(_firebaseReady)
+        {
+            SetFirebase("status/currentScene", scene.name);
+        }
+
+        Debug.Log($"[HMDHandler] 씬 전환 감지: {scene.name}");
+
+        var found = FindFirstObjectByType<SceneAmbience>();
+        if (found != null)
+        {
+            ambienceManager = found;
+            Debug.Log($"[HMDHandler] SceneAmbiece 자동 연결 : {scene.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[HMDHandler] SceneAmbience 없음: {scene.name}");
+        }
     }
     private void Start()
     {
@@ -63,10 +87,11 @@ public class HMDHandler : MonoBehaviour
         {
             Debug.LogWarning("[HMDHandler] BreathDetector를 찾을 수 없습니다.");
         }
-        
+
     }
     private void OnDestroy()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
         if (BreathDetector.Current != null)
         {
             BreathDetector.Current.onBreathUpdate.RemoveListener(OnBreathUpdated);
@@ -75,7 +100,7 @@ public class HMDHandler : MonoBehaviour
     private void Update()
     {
         // 디버그용 - 나중에 지우기****
-        if(_state == State.RelaxedWait)
+        if (_state == State.RelaxedWait)
         {
             Debug.Log($"[HMDHandler] 이완 타이머: {_relaxedTimer:F1}초/{relaxedHoldDuration}초");
         }
@@ -85,7 +110,7 @@ public class HMDHandler : MonoBehaviour
             case State.RelaxedWait:
                 // 타이머를 Update에서 증가 (이벤트 빈도 아닌 실제 시간 기준)
                 _relaxedTimer += Time.deltaTime;
-                if(_relaxedTimer >= relaxedHoldDuration && !_guideTriggered)
+                if (_relaxedTimer >= relaxedHoldDuration && !_guideTriggered)
                 {
                     _guideTriggered = true;
                     StartCoroutine(PlayGuideAndWait());
@@ -152,6 +177,7 @@ public class HMDHandler : MonoBehaviour
             // VR 착용 상태 초기화
             SetFirebase("status/isWearing", true);
             SetFirebase("status/sleepMusicStart", false);
+            SetFirebase("status/bgmUrl", ""); // 이전 세션 BGM URL 초기화
             Debug.Log("[HMDHandler] Firebase 연결 성공!");
         });
     }
@@ -234,7 +260,7 @@ public class HMDHandler : MonoBehaviour
         _isTransitioned = true;
         _unmountTimer = 0f;
 
-        Debug.Log("HMDHandler] 탈착 확정 -> 수면 모드 진입");
+        Debug.Log("[HMDHandler] 탈착 확정 -> 수면 모드 진입");
 
         // Firebase : 착용 해제 + 수면 음악 시작 신호
         // 모바일 PWA가 sleepMusicStart = true를 감지하면 수면 음악을 재생함
@@ -244,7 +270,7 @@ public class HMDHandler : MonoBehaviour
 
         // 현재 씬 BGM을 모바일로 전달 (VR 음악이 모바일에서 이어서 재생됨)
         // bgmClip 이름이 모바일 /public/souns/폴더의 파일명과 일치해야 함
-        if(ambienceManager != null && ambienceManager.bgmClip != null)
+        if (ambienceManager != null && ambienceManager.bgmClip != null)
         {
             string bgmUrl = $"/sounds/{ambienceManager.bgmClip.name}.mp3";
             SetFirebase("status/bgmUrl", bgmUrl);
@@ -255,6 +281,13 @@ public class HMDHandler : MonoBehaviour
             Debug.LogWarning("[HMDHandler] ambienceManager 또는 bgmClip 없음 -> bgmUrl 전송 불가");
         }
         Debug.Log("[HMDHandler] Firebase 신호 전송 완료 -> 모바일 수면 음악 시작 대기");
+    
+        // 호흡 측정 종료 (VR 탈착 후 더 이상 불필요)
+        if(BreathDetector.Current != null)
+        {
+            BreathDetector.Current.StopAll();
+        }
+    
     }
     // 재착용 복구
     private void OnResumed()
@@ -299,7 +332,7 @@ public class HMDHandler : MonoBehaviour
     // 헬퍼
     private int ParseLevel(string status)
     {
-        switch(status)
+        switch (status)
         {
             case "Level1": return 1;
             case "Level2": return 2;

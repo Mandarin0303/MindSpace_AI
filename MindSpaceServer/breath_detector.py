@@ -9,7 +9,7 @@ MindSpace VR - Meta Quest 2 호흡 측정 모듈
 
 출력:
   - RPM (breaths per minute)
-  - 호흡 상태: NORMAL / SLOW / FAST / HOLD
+  - 호흡 상태: Level 1~5
   - confidence score (0.0~1.0)
 """
 
@@ -21,9 +21,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-# ──────────────────────────────────────────
-# 설정 상수
-# ──────────────────────────────────────────
+
+# ----- 설정 상수 -----
 MIC_SAMPLE_RATE = 16000          # Hz  (Quest 2 내장 마이크)
 IMU_SAMPLE_RATE = 72             # Hz  (Quest 2 IMU: 실제 약 60~72Hz)
 BREATH_WINDOW_SEC = 10           # 분석 윈도우 (초)
@@ -36,9 +35,7 @@ BREATH_AUDIO_LOW  = 80           # Hz
 BREATH_AUDIO_HIGH = 600          # Hz
 
 
-# ──────────────────────────────────────────
-# 데이터 컨테이너
-# ──────────────────────────────────────────
+# ----- 데이터 컨테이너 -----
 @dataclass
 class BreathState:
     rpm: float = 0.0
@@ -61,9 +58,7 @@ class BreathState:
         }
 
 
-# ──────────────────────────────────────────
-# 1. 마이크 채널 분석기
-# ──────────────────────────────────────────
+# ----- 1. 마이크 채널 분석기 -----
 class MicrophoneBreathAnalyzer:
     """
     Quest 2 내장 마이크 오디오에서 호흡 패턴 추출.
@@ -90,7 +85,7 @@ class MicrophoneBreathAnalyzer:
         self._env_buf: deque = deque(maxlen=env_len)
         self._env_fs = 10          # 다운샘플 주파수
 
-    # ── 외부 입력 ──────────────────────────
+    # ----- 외부 입력 -----
     def push_audio(self, samples: np.ndarray):
         """
         Quest 2에서 수신한 PCM 샘플 추가 (float32, -1.0~1.0).
@@ -115,7 +110,7 @@ class MicrophoneBreathAnalyzer:
             downsampled = smoothed[::step]
             self._env_buf.extend(downsampled.tolist())
 
-    # ── RPM 추출 ──────────────────────────
+    # ----- RPM 추출 -----
     def get_rpm(self) -> tuple[float, float]:
         """
         Returns: (rpm, confidence)
@@ -155,9 +150,7 @@ class MicrophoneBreathAnalyzer:
         return rpm, confidence
 
 
-# ──────────────────────────────────────────
-# 2. IMU 채널 분석기
-# ──────────────────────────────────────────
+# ----- 2. IMU 채널 분석기 -----
 class IMUBreathAnalyzer:
     """
     Quest 2 헤드셋 IMU (가속도계) 수직축 데이터에서 호흡 패턴 추출.
@@ -185,7 +178,7 @@ class IMUBreathAnalyzer:
         self._last_filtered: float = 0.0
         self._phase: str = "unknown"   # "inhale" / "exhale"
 
-    # ── 외부 입력 ──────────────────────────
+    # ----- 외부 입력 -----
     def push_imu(self, accel_x: float, accel_y: float, accel_z: float):
         """
         IMU 가속도계 1 샘플 추가.
@@ -193,7 +186,7 @@ class IMUBreathAnalyzer:
         """
         self._accel_y.append(accel_y)
 
-    # ── RPM 추출 ──────────────────────────
+    # ----- RPM 추출 -----
     def get_rpm(self) -> tuple[float, float, bool]:
         """
         Returns: (rpm, confidence, is_inhale)
@@ -246,9 +239,7 @@ class IMUBreathAnalyzer:
         return rpm, confidence, is_inhale
 
 
-# ──────────────────────────────────────────
-# 3. 융합 엔진
-# ──────────────────────────────────────────
+# ----- 3. 융합 엔진 -----
 class BreathFusionEngine:
     """
     마이크 + IMU 두 채널을 confidence 가중치로 융합.
@@ -265,14 +256,14 @@ class BreathFusionEngine:
         self.imu = IMUBreathAnalyzer()
         self._rpm_history: deque = deque(maxlen=10)   # 스무딩용
 
-    # ── 데이터 수신 ────────────────────────
+    # ----- 데이터 수신 -----
     def on_audio(self, samples: np.ndarray):
         self.mic.push_audio(samples)
 
     def on_imu(self, ax: float, ay: float, az: float):
         self.imu.push_imu(ax, ay, az)
 
-    # ── 호흡 상태 계산 ─────────────────────
+    # ----- 호흡 상태 계산 -----
     def compute(self) -> BreathState:
         mic_rpm, mic_conf = self.mic.get_rpm()
         imu_rpm, imu_conf, is_inhale = self.imu.get_rpm()
@@ -300,20 +291,20 @@ class BreathFusionEngine:
 
     @staticmethod
     def _classify(rpm: float, conf: float) -> str:
-        if conf < 0.15:
-            return "UNKNOWN"
-        if rpm < 2:
-            return "HOLD"          # 호흡 멈춤 (무호흡 의심)
-        if rpm < NORMAL_RPM_MIN:
-            return "SLOW"          # 깊은 명상 호흡
-        if rpm > NORMAL_RPM_MAX:
-            return "FAST"          # 과호흡 / 스트레스
-        return "NORMAL"
+        if rpm < 11:
+            return "UNKNOWN"          # 호흡 멈춤 -> UNKNOWN 처리
+        if rpm <= 15:
+            return "Level1"          # 매우 안정 (깊은 명상)
+        if rpm <= 18:
+            return "Level2"          # 정상
+        if rpm <= 22:
+            return "Level3"         # 주의
+        if rpm <= 26:
+            return "Level4"         # 높음
+        return "Level5"             # 매우 높음
 
 
-# ──────────────────────────────────────────
-# 4. 시뮬레이터 (테스트용 가상 센서 데이터)
-# ──────────────────────────────────────────
+# ----- 4. 시뮬레이터 (테스트용 가상 센서 데이터) -----
 class SensorSimulator:
     """
     실제 Quest 2 없이도 테스트 가능한 가상 센서 데이터 생성기.
@@ -349,9 +340,7 @@ class SensorSimulator:
         return ax, ay_drift + ay_breath + ay_noise, az
 
 
-# ──────────────────────────────────────────
-# 5. 메인 파이프라인 (실제 사용 예시)
-# ──────────────────────────────────────────
+# ----- 5. 메인 파이프라인 (실제 사용 예시) -----
 def run_simulation(seconds: int = 20, target_rpm: float = 15.0):
     """
     시뮬레이션 실행 후 결과 출력.
@@ -410,23 +399,7 @@ def run_simulation(seconds: int = 20, target_rpm: float = 15.0):
     return states
 
 
-def _print_state(state: BreathState, t: float):
-    status_emoji = {
-        "NORMAL": "🟢", "SLOW": "🔵", "FAST": "🔴",
-        "HOLD": "⚠️ ", "UNKNOWN": "⚫",
-    }
-    phase = "들숨 ↑" if state.inhale else "날숨 ↓"
-    emoji = status_emoji.get(state.status, "⚫")
-    bar = "█" * int(state.confidence * 20) + "░" * (20 - int(state.confidence * 20))
-
-    print(f"  [{t:5.1f}s] {emoji} {state.status:<7} "
-          f"| RPM {state.rpm:5.1f} (Mic:{state.mic_rpm:4.1f} / IMU:{state.imu_rpm:4.1f}) "
-          f"| {phase} | conf [{bar}] {state.confidence:.2f}")
-
-
-# ──────────────────────────────────────────
-# 6. FastAPI 연동 예시 (실제 배포 시 사용)
-# ──────────────────────────────────────────
+# ----- 6. FastAPI 연동 예시 (실제 배포 시 사용) -----
 FASTAPI_EXAMPLE = '''
 # main.py (FastAPI + WebSocket 연동)
 # ------------------------------------
