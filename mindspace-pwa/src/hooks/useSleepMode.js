@@ -253,6 +253,21 @@ export function useSleepMode() {
         console.log('[useSleepMode] 모든 오디오 정지');
     }, [stopBinauralBeat, stopSilentAudio]);
 
+    // 수면음악 토글 버튼 제어
+    const pauseBgm = useCallback(() => {
+        if (bgmHtmlRef.current) {
+            bgmHtmlRef.current.pause();
+            console.log('[useSleepMode] BGM 일시정지');
+        }
+    }, []);
+
+    const resumeBgm = useCallback(() => {
+        if (bgmHtmlRef.current && bgmHtmlRef.current.src) {
+            bgmHtmlRef.current.play().cathch(() => { });
+            console.log('[useSleepMode] BGM 재개');
+        }
+    }, []);
+
     // 깊은 수면 판단 타이머
     const startSleepDetectTimer = useCallback((onSleep) => {
         if (sleepDetectTimerRef.current) {
@@ -587,5 +602,7 @@ export function useSleepMode() {
         stopSleepMode,  // () => void - 수동 종료 시
         setBinauralVolume,  // 바이노럴 볼륨 조절 (0.0~1.0)
         setBgmVolume,   // 외부에서 수동 볼륨 조절 시
+        pauseBgm,
+        resumeBgm,
     };
 } 
