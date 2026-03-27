@@ -14,7 +14,7 @@ public class SceneAmbience : MonoBehaviour
     public float lightIntensity = 1f;
 
     [Header("skybox material")]
-    public Material skyboxMaterial;
+    //public Material skyboxMaterial;
 
     private float _originalVolume = 1f;     // BGM 원본 볼륨(페이드 복원용)
 
@@ -38,11 +38,11 @@ public class SceneAmbience : MonoBehaviour
         }
         
         // 스카이박스
-        if(skyboxMaterial != null)
-        {
-            RenderSettings.skybox = skyboxMaterial;
-            DynamicGI.UpdateEnvironment();
-        }
+        //if(skyboxMaterial != null)
+        //{
+        //    RenderSettings.skybox = skyboxMaterial;
+        //    DynamicGI.UpdateEnvironment();
+        //}
     }
 
     // HMDHandler에서 호출: BGM 페이드 아웃

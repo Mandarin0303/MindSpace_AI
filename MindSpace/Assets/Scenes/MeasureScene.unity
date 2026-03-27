@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 41d3240b317eba048862abe088249702, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -1221,7 +1221,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1201874686
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1326,6 +1326,60 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 3}
   m_SizeDelta: {x: 800, y: 600}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1321119001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1321119003}
+  - component: {fileID: 1321119002}
+  m_Layer: 0
+  m_Name: SkyManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1321119002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1321119001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee5bba7793e6f514bad22284d694b925, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicskyController
+  nightSky: {fileID: 8900000, guid: f9eb35c9d4566ae4393f297b843db890, type: 3}
+  dawnSky: {fileID: 8900000, guid: f714e1c2a6789554a8b460b731337a5c, type: 3}
+  daySky: {fileID: 8900000, guid: 0542ba57050488a4d80f26765267e323, type: 3}
+  sunsetSky: {fileID: 8900000, guid: e7b6b82bd825b8b4991d1f20ac1fb3da, type: 3}
+  sunLight: {fileID: 410087040}
+  skyboxMaterial: {fileID: 2100000, guid: 41d3240b317eba048862abe088249702, type: 2}
+  timeOfDay: 6.2
+  useRealTime: 0
+  timeScale: 1
+  stars: {fileID: 0}
+--- !u!4 &1321119003
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1321119001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1365177636
 GameObject:
   m_ObjectHideFlags: 0
@@ -2233,7 +2287,6 @@ MonoBehaviour:
   directionalLight: {fileID: 410087040}
   lightColor: {r: 0.13315862, g: 0.8396226, b: 0.10693307, a: 0.68235296}
   lightIntensity: 1
-  skyboxMaterial: {fileID: 2100000, guid: 1f61d25b29a2956448144155088e3a50, type: 2}
 --- !u!4 &2035715648
 Transform:
   m_ObjectHideFlags: 0
@@ -23063,3 +23116,4 @@ SceneRoots:
   - {fileID: 1014538025}
   - {fileID: 1201874690}
   - {fileID: 45562339}
+  - {fileID: 1321119003}
