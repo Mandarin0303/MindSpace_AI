@@ -1,17 +1,21 @@
+# === [Common & OS] ===
+.DS_Store
+Thumbs.db
+.vscode/
+.vs/
+*.log
+
 # === [Python AI Project: MindSpace_Project] ===
-# 파이썬 실행 시 생성되는 불필요한 파일 및 가상환경 제외
 MindSpace_Project/__pycache__/
 MindSpace_Project/*.py[cod]
-MindSpace_Project/*$py.class
 MindSpace_Project/.venv/
 MindSpace_Project/venv/
 MindSpace_Project/.env
-MindSpace_Project/.vscode/
 MindSpace_Project/*.h5
 MindSpace_Project/*.pt
 
 # === [Unity Project: MindSpace] ===
-# 유니티 공식 템플릿 설정을 폴더 경로에 맞춰 수정
+# 유니티는 폴더명 내부의 특정 폴더들을 무시해야 합니다.
 MindSpace/[Ll]ibrary/
 MindSpace/[Tt]emp/
 MindSpace/[Oo]bj/
@@ -20,58 +24,20 @@ MindSpace/[Bb]uilds/
 MindSpace/[Ll]ogs/
 MindSpace/[Uu]ser[Ss]ettings/
 MindSpace/.utmp/
-MindSpace/*.log
 
-# 유니티 자동 생성 프로젝트 파일들
+# 유니티 자동 생성 파일들
 MindSpace/*.csproj
 MindSpace/*.unityproj
 MindSpace/*.sln
 MindSpace/*.suo
-MindSpace/*.tmp
 MindSpace/*.user
 MindSpace/*.userprefs
-MindSpace/*.pidb
-MindSpace/*.booproj
-MindSpace/*.svd
-MindSpace/*.pdb
-MindSpace/*.mdb
-MindSpace/*.opendb
-MindSpace/*.VC.db
 
-# 빌드 결과물 및 대용량 캡처 파일
+# 대용량 및 빌드 파일 (Assets 내부 대용량 폴더 포함)
 MindSpace/[Mm]emoryCaptures/
 MindSpace/[Rr]ecordings/
-MindSpace/*.apk
-MindSpace/*.aab
-MindSpace/*.unitypackage
-MindSpace/*.app
-
-# === [Common & IDE Settings] ===
-# 공통 설정 및 찌꺼기 파일
-.vs/
-.gradle/
-.DS_Store
-Thumbs.db
-
-# 대용량 파일 제외 (Firebase & 에셋)
-MindSpace/Assets/Firebase/Plugins/
+MindSpace/Assets/Firebase/
 MindSpace/Assets/Nebula Skyboxes/
-Build_Space.apk
-
-# 대용량 파일 및 빌드 파일 제외
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-Firebase/
-Nebula Skyboxes/
 *.apk
-
-node_modules/
-venv/
-__pycache__/
-.env
-.firebase/
-build/
-dist/
-*.log
-.DS_Store
+*.aab
+*.unitypackage
