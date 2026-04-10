@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 41d3240b317eba048862abe088249702, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 2286137ec08a42e4d886b1b4ddfea66b, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -1360,10 +1360,13 @@ MonoBehaviour:
   daySky: {fileID: 8900000, guid: 0542ba57050488a4d80f26765267e323, type: 3}
   sunsetSky: {fileID: 8900000, guid: e7b6b82bd825b8b4991d1f20ac1fb3da, type: 3}
   sunLight: {fileID: 410087040}
-  skyboxMaterial: {fileID: 2100000, guid: 41d3240b317eba048862abe088249702, type: 2}
-  timeOfDay: 6.2
+  sunDisc: {fileID: 0}
+  skyboxMaterial: {fileID: 2100000, guid: 2286137ec08a42e4d886b1b4ddfea66b, type: 2}
+  timeOfDay: 5.3
   useRealTime: 0
-  timeScale: 1
+  timeScale: 60
+  nightExposure: 0.4
+  nightAmbientIntensity: 0.25
   stars: {fileID: 0}
 --- !u!4 &1321119003
 Transform:

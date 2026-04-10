@@ -88,9 +88,12 @@ public class DynamicskyController : MonoBehaviour
     private void ValidateShader()
     {
         if (skyboxMaterial == null) return;
-        if (!skyboxMaterial.HasProperty("_BlendCubemap"))
+
+        //if (!skyboxMaterial.HasProperty("_BlendCubemap"))
+        // 새 셰이더 기준으로 변경
+        if (!skyboxMaterial.HasProperty("_TexA"))
         {
-            Debug.LogWarning("[DynamicSky] skyboxMaterial의 Shader가 'Skybox/Cubemap Blend'가 아닙니다.\n" + "머터리얼 선택 -> Shader -> Skybox -> Cubemap Blend로 변경해주세요.");
+            Debug.LogWarning("[DynamicSky] skyboxMaterial의 Shader가 'Custom/SkyboxDiagonalBlend'가 아닙니다.\n" + "머터리얼 선택 -> Shader -> Skybox -> Cubemap Blend로 변경해주세요.");
         }
     }
 
@@ -122,7 +125,7 @@ public class DynamicskyController : MonoBehaviour
         }
 
         // 새벽 전환(05:00-06:15 / 06:15-07:30)
-        else if (t < DAWN_START)
+        else if (t < DAY_START)
         {
             float mid = (DAWN_START + DAY_START) * 0.5f; // 06:15
 
@@ -158,6 +161,7 @@ public class DynamicskyController : MonoBehaviour
 
             if( t<mid)
             {
+                // 낮 -> 일몰
                 fromTex = daySky;
                 toTex = sunsetSky != null ? sunsetSky : nightSky;
                 blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(SUNSET_START, mid, t));
@@ -165,21 +169,36 @@ public class DynamicskyController : MonoBehaviour
             }
             else
             {
+                // 일몰 -> 밤
                 fromTex = sunsetSky != null ? sunsetSky : daySky;
                 toTex = nightSky;
-                blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(SUNSET_START, mid, t));
+                blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(mid, NIGHT_START, t));
                 exposure = Mathf.Lerp(0.6f, nightExposure, blend);
             }
         }
 
+        // 머터리얼에 적용 - shader 하기 전
+        //if(fromTex != null)
+        //{
+        //    skyboxMaterial.SetTexture("_Tex", fromTex);
+        //}
+        //if(toTex != null)
+        //{
+        //    skyboxMaterial.SetTexture("_BlendCubemap", toTex);
+        //}
+
+        // shader 하기전에
+        //skyboxMaterial.SetFloat("_Blend", blend);
+        //skyboxMaterial.SetFloat("_Exposure", exposure);
+
         // 머터리얼에 적용
         if(fromTex != null)
         {
-            skyboxMaterial.SetTexture("_Tex", fromTex);
+            skyboxMaterial.SetTexture("_TexA", toTex);
         }
         if(toTex != null)
         {
-            skyboxMaterial.SetTexture("_BlendCubemap", toTex);
+            skyboxMaterial.SetTexture("_TexB", fromTex);
         }
 
         skyboxMaterial.SetFloat("_Blend", blend);
